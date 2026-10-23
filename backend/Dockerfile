@@ -26,7 +26,7 @@ COPY --from=builder /app/target/*.jar app.jar
 
 # Container sağlık kontrolü
 HEALTHCHECK --interval=30s --timeout=10s --retries=5 --start-period=40s \
-  CMD curl -f http://localhost:8080/users || exit 1
+  CMD curl -f http://localhost:8080/login || exit 1
 
 EXPOSE 8080
 
