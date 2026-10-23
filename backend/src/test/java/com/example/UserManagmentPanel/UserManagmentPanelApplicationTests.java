@@ -1,13 +1,10 @@
 package com.example.UserManagmentPanel;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class UserManagmentPanelApplicationTests {
+class UserManagmentPanelApplicationTests extends AbstractIntegrationTest {
 
-	@Test
-	void contextLoads() {
-	}
-
+    @Test
+    void contextLoads() {
+    }
 }
