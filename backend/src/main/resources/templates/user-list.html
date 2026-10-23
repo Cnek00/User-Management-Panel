@@ -1,100 +1,151 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="tr">
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Kullanıcı Yönetim Paneli</title>
-    <!-- Tailwind CSS CDN -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Users · User Management Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', system-ui, sans-serif; }</style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-8">
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+<div class="max-w-7xl mx-auto px-6 py-8">
 
-    <div class="max-w-6xl mx-auto">
-        <!-- Üst Başlık ve Yeni Ekleme Butonu -->
-        <div class="flex justify-between items-center mb-8 border-b border-slate-700 pb-5">
-            <div>
-                <h1 class="text-3xl font-bold text-white tracking-tight">Kullanıcı Yönetim Paneli</h1>
-                <p class="text-slate-400 text-sm mt-1">Sistemde kayıtlı olan tüm kullanıcıları buradan yönetebilirsiniz.</p>
+    <header class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-6">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-400">Spring Boot · Spring Security</p>
+            <h1 class="mt-2 text-3xl font-extrabold tracking-tight text-white">User Management Panel</h1>
+            <p class="mt-1 text-sm text-slate-400">Rank hierarchy, role-based access control and scoped permissions.</p>
+        </div>
+        <div class="flex items-center gap-3" th:if="${currentUser != null}">
+            <div class="text-right">
+                <p class="text-sm font-semibold text-white" th:text="${currentUser.username}">admin</p>
+                <p class="text-xs text-slate-400">
+                    <span th:text="${currentUser.rank.name}">SUPER_ADMIN</span>
+                    · <span th:text="${currentUser.rank.level}">100</span>
+                </p>
             </div>
-            <a th:href="@{/users/new}" 
-               class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 transition-colors rounded-lg font-semibold shadow-lg flex items-center gap-2">
-                <span class="text-xl leading-none">+</span> Yeni Kullanıcı Ekle
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/20 text-sm font-bold text-indigo-300"
+                 th:text="${#strings.substring(currentUser.username, 0, 1).toUpperCase()}">A</div>
+            <form th:action="@{/logout}" method="post">
+                <button type="submit" class="rounded-lg border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-300 hover:border-rose-500/50 hover:text-rose-300 transition">
+                    Sign out
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <div th:if="${successMessage}" class="mt-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" th:text="${successMessage}"></div>
+    <div th:if="${errorMessage}" class="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300" th:text="${errorMessage}"></div>
+
+    <section class="mt-8 grid gap-4 sm:grid-cols-3">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <p class="text-xs uppercase tracking-wider text-slate-400">Visible users</p>
+            <p class="mt-2 text-3xl font-bold text-white" th:text="${#lists.size(users)}">4</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <p class="text-xs uppercase tracking-wider text-slate-400">Active accounts</p>
+            <p class="mt-2 text-3xl font-bold text-emerald-400" th:text="${#lists.size(users.?[enabled])}">3</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <p class="text-xs uppercase tracking-wider text-slate-400">Access model</p>
+            <p class="mt-2 text-lg font-semibold text-indigo-300">Roles + rank + scopes</p>
+        </div>
+    </section>
+
+    <section class="mt-8 rounded-2xl border border-slate-800 bg-slate-900/60 shadow-2xl shadow-black/30">
+        <div class="flex flex-col gap-4 border-b border-slate-800 p-5 md:flex-row md:items-center md:justify-between">
+            <form th:action="@{/users}" method="get" class="flex w-full max-w-md gap-2">
+                <input type="search" name="q" th:value="${query}" placeholder="Search username or email…"
+                       class="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-slate-200 placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                <button type="submit" class="rounded-lg border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:border-indigo-500/60 hover:text-white transition">
+                    Search
+                </button>
+            </form>
+            <a sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:href="@{/users/new}"
+               class="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-950/40 hover:bg-indigo-500 transition">
+                <span class="text-lg leading-none">+</span> New user
             </a>
         </div>
 
-        <!-- Tablo Container -->
-        <div class="bg-slate-800 rounded-2xl shadow-xl border border-slate-700 overflow-hidden">
-            <table class="w-full text-left border-collapse">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left">
                 <thead>
-                    <tr class="bg-slate-700/50 text-slate-300 text-sm uppercase tracking-wider border-b border-slate-700">
-                        <th class="py-4 px-6">ID</th>
-                        <th class="py-4 px-6">Kullanıcı Adı</th>
-                        <th class="py-4 px-6">E-posta</th>
-                        <th class="py-4 px-6">Sınıf (Rank)</th>
-                        <th class="py-4 px-6 text-center">Durum</th>
-                        <th class="py-4 px-6 text-center">İşlemler</th>
-                    </tr>
+                <tr class="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-400">
+                    <th class="px-5 py-4">User</th>
+                    <th class="px-5 py-4">Email</th>
+                    <th class="px-5 py-4">Rank</th>
+                    <th class="px-5 py-4">Roles</th>
+                    <th class="px-5 py-4 text-center">Status</th>
+                    <th class="px-5 py-4 text-right">Actions</th>
+                </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-700">
-                    <!-- Boş liste senaryosu (Kolon sayısı 6'ya çıktığı için colspan="6" yapıldı) -->
-                    <tr th:if="${#lists.isEmpty(users)}">
-                        <td colspan="6" class="py-8 text-center text-slate-400">
-                            Henüz kayıtlı kullanıcı bulunamadı. Hemen bir tane ekleyin!
-                        </td>
-                    </tr>
-                    
-                    <!-- Dinamik liste dönme -->
-                    <tr th:each="u : ${users}" class="hover:bg-slate-700/30 transition-colors">
-                        <td class="py-4 px-6 text-slate-400" th:text="${u.id}">1</td>
-                        <td class="py-4 px-6 font-medium text-white" th:text="${u.username}">admin</td>
-                        <td class="py-4 px-6 text-slate-300" th:text="${u.email}">admin@mail.com</td>
-                        
-                        <!-- YENİ: Sınıf / Rütbe (Rank) Gösterimi -->
-                        <td class="py-4 px-6">
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border"
-                                  th:classappend="${u.rank.level >= 80} ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-400' : 
-                                                  (${u.rank.level >= 50} ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-slate-700/50 border-slate-600 text-slate-300')"
-                                  th:text="${u.rank.name + ' (Lvl ' + u.rank.level + ')'}">
-                                SUPER_ADMIN (Lvl 100)
-                            </span>
-                        </td>
-
-                        <!-- Durum Rozeti -->
-                        <td class="py-4 px-6 text-center">
-                            <span th:if="${u.enabled}" class="px-3 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                Aktif
-                            </span>
-                            <span th:unless="${u.enabled}" class="px-3 py-1 text-xs font-semibold rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                                Pasif
-                            </span>
-                        </td>
-                        
-                        <!-- Butonlar -->
-                        <td class="py-4 px-6 text-center space-x-2">
-                            <!-- YENİ: Yetkileri Yönet Butonu -->
-                            <a th:href="@{/users/{id}/permissions(id=${u.id})}" 
-                               class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600/20 text-blue-400 border border-transparent hover:bg-blue-600/30 transition-colors">
-                                🔑 Yetki Yönetimi
+                <tbody class="divide-y divide-slate-800">
+                <tr th:if="${#lists.isEmpty(users)}">
+                    <td colspan="6" class="px-5 py-12 text-center text-slate-400">No users match this search.</td>
+                </tr>
+                <tr th:each="u : ${users}" class="hover:bg-slate-800/40 transition-colors">
+                    <td class="px-5 py-4">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-indigo-300"
+                                 th:text="${#strings.substring(u.username, 0, 1).toUpperCase()}">A</div>
+                            <div>
+                                <p class="font-semibold text-white" th:text="${u.username}">admin</p>
+                                <p class="text-xs text-slate-500" th:text="${'#' + u.id}">#1</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-5 py-4 text-sm text-slate-300" th:text="${u.email}">admin@example.com</td>
+                    <td class="px-5 py-4">
+                        <span class="inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold"
+                              th:classappend="${u.rank.level >= 80} ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300' : (${u.rank.level >= 50} ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-slate-700 bg-slate-800 text-slate-300')"
+                              th:text="${u.rank.name + ' · ' + u.rank.level}">SUPER_ADMIN · 100</span>
+                    </td>
+                    <td class="px-5 py-4">
+                        <div class="flex flex-wrap gap-1">
+                            <span th:each="role : ${u.roles}" class="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-semibold text-slate-300"
+                                  th:text="${#strings.replace(role.name.name(), 'ROLE_', '')}">ADMIN</span>
+                        </div>
+                    </td>
+                    <td class="px-5 py-4 text-center">
+                        <span th:if="${u.enabled}" class="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">Active</span>
+                        <span th:unless="${u.enabled}" class="rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs font-semibold text-rose-300">Blocked</span>
+                    </td>
+                    <td class="px-5 py-4">
+                        <div class="flex flex-wrap items-center justify-end gap-2">
+                            <a th:href="@{/users/{id}/permissions(id=${u.id})}"
+                               class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/20 transition">
+                                Permissions
                             </a>
-
-                            <!-- Orijinal Aktif/Pasif Yapma (Dinamik class ve text yapısı korundu) -->
-                            <a th:href="@{/users/toggle/{id}(id=${u.id})}" 
-                               th:classappend="${u.enabled} ? 'bg-amber-600/20 text-amber-400 hover:bg-amber-600/30' : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'"
-                               class="px-3 py-1.5 text-xs font-medium rounded-lg border border-transparent transition-colors">
-                                <span th:text="${u.enabled} ? 'Engelle' : 'Aktif Et'">Engelle</span>
-                            </a>
-
-                            <!-- Orijinal Silme (Onclick korundu) -->
-                            <a th:href="@{/users/delete/{id}(id=${u.id})}" 
-                               onclick="return confirm('Bu kullanıcıyı tamamen silmek istediğinize emin misiniz?')"
-                               class="px-3 py-1.5 text-xs font-medium rounded-lg bg-rose-600/20 text-rose-400 border border-transparent hover:bg-rose-600/30 transition-colors">
-                                Sil
-                            </a>
-                        </td>
-                    </tr>
+                            <form sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:if="${currentUser != null and currentUser.id != u.id}"
+                                  th:action="@{/users/{id}/toggle(id=${u.id})}" method="post">
+                                <button type="submit"
+                                        class="rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition"
+                                        th:classappend="${u.enabled} ? 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'"
+                                        th:text="${u.enabled} ? 'Block' : 'Activate'">Block</button>
+                            </form>
+                            <form sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:if="${currentUser != null and currentUser.id != u.id}"
+                                  th:action="@{/users/{id}/delete(id=${u.id})}" method="post"
+                                  onsubmit="return confirm('Delete this user permanently?');">
+                                <button type="submit" class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition">
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
                 </tbody>
             </table>
         </div>
-    </div>
+    </section>
 
+    <p class="mt-6 text-center text-xs text-slate-600">
+        Passwords are stored with BCrypt. Mutating actions require a CSRF token.
+    </p>
+</div>
 </body>
 </html>

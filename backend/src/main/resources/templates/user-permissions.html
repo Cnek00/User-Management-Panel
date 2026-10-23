@@ -1,141 +1,120 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="tr">
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Yetki & Sınıf Yönetimi</title>
-    <!-- Modern ve hızlı tasarım için Tailwind CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Permissions · User Management Panel</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', system-ui, sans-serif; }</style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+<div class="max-w-6xl mx-auto px-6 py-10">
 
-    <div class="container mx-auto px-4 py-8 max-w-5xl">
-        
-        <!-- Üst Menü / Geri Dönüş -->
-        <div class="flex justify-between items-center mb-8 border-b border-gray-800 pb-4">
-            <div>
-                <h1 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                    Yetki ve Sınıf Yönetimi
-                </h1>
-                <p class="text-gray-400 text-sm mt-1">
-                    Kullanıcı: <span class="text-white font-semibold" th:text="${user.username}">admin</span> 
-                    (<span class="text-gray-300" th:text="${user.email}">admin@sirket.com</span>)
-                </p>
+    <header class="flex flex-col gap-4 border-b border-slate-800 pb-6 md:flex-row md:items-center md:justify-between">
+        <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-blue-400">Access control</p>
+            <h1 class="mt-2 text-2xl font-bold text-white">Rank &amp; permissions</h1>
+            <p class="mt-1 text-sm text-slate-400">
+                <span class="font-semibold text-white" th:text="${user.username}">moderator</span>
+                · <span th:text="${user.email}">moderator@example.com</span>
+                · <span th:text="${user.rank.name + ' (' + user.rank.level + ')'}">MODERATOR (50)</span>
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="flex flex-wrap gap-1">
+                <span th:each="role : ${user.roles}" class="rounded bg-slate-800 px-2 py-1 text-[10px] font-semibold text-slate-300"
+                      th:text="${#strings.replace(role.name.name(), 'ROLE_', '')}">MODERATOR</span>
             </div>
-            <a href="/users" class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg text-sm font-medium transition duration-200">
-                ← Kullanıcı Listesine Dön
-            </a>
+            <a th:href="@{/users}" class="rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 hover:border-slate-500 hover:text-white transition">← Users</a>
         </div>
+    </header>
 
-        <!-- Bildirim Mesajları -->
-        <div th:if="${param.successRank}" class="mb-6 p-4 bg-emerald-950 border border-emerald-500/30 text-emerald-400 rounded-lg text-sm">
-            🎉 Kullanıcının hiyerarşik sınıfı (Rank) başarıyla güncellendi!
-        </div>
-        <div th:if="${param.successPermission}" class="mb-6 p-4 bg-emerald-950 border border-emerald-500/30 text-emerald-400 rounded-lg text-sm">
-            🔑 Yeni dinamik yetki başarıyla tanımlandı!
-        </div>
-        <div th:if="${param.successRevoke}" class="mb-6 p-4 bg-rose-950 border border-rose-500/30 text-rose-400 rounded-lg text-sm">
-            🚫 Atanan özel yetki başarıyla geri çekildi!
-        </div>
+    <div th:if="${successMessage}" class="mt-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" th:text="${successMessage}"></div>
+    <div th:if="${errorMessage}" class="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300" th:text="${errorMessage}"></div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            
-            <!-- SOL KOLON: Sınıf (Rank) Güncelleme Formu -->
-            <div class="bg-gray-800/50 border border-gray-800 p-6 rounded-xl shadow-lg h-fit">
-                <h3 class="text-lg font-bold text-blue-400 mb-4 border-b border-gray-800 pb-2">
-                    🛡️ Sınıf (Rank) Güncelle
-                </h3>
-                <form th:action="@{/users/{id}/update-rank(id=${user.id})}" method="post" class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                            Mevcut Seviye: 
-                            <span class="text-emerald-400 normal-case" th:text="${user.rank.name + ' (Lvl ' + user.rank.level + ')'}">SUPER_ADMIN</span>
-                        </label>
-                        <select name="rankId" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
-                            <option th:each="r : ${allRanks}" 
-                                    th:value="${r.id}" 
-                                    th:text="${r.name + ' (Lvl ' + r.level + ')'}"
-                                    th:selected="${r.id == user.rank.id}">
-                            </option>
-                        </select>
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm py-2 px-4 rounded-lg transition duration-200 shadow-md shadow-blue-900/20">
-                        Sınıfı Güncelle
-                    </button>
-                </form>
-            </div>
+    <div class="mt-8 grid gap-6 lg:grid-cols-3">
 
-            <!-- ORTA KOLON: Dinamik Yetki Ekleme Formu -->
-            <div class="bg-gray-800/50 border border-gray-800 p-6 rounded-xl shadow-lg h-fit">
-                <h3 class="text-lg font-bold text-emerald-400 mb-4 border-b border-gray-800 pb-2">
-                    🔑 Yeni Yetki Tanımla
-                </h3>
-                <form th:action="@{/users/{id}/grant-permission(id=${user.id})}" method="post" class="space-y-4">
-                    <!-- Gizli alan: Yetkiyi şu an kim veriyor? (Simüle etmek için seeder'daki admin id'si olan 1'i verelim şimdilik) -->
-                    <input type="hidden" name="grantedById" value="1">
-                    
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Eylem (Permission)</label>
-                        <select name="permissionId" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-emerald-500">
-                            <option th:each="p : ${allPermissions}" 
-                                    th:value="${p.id}" 
-                                    th:text="${p.action + (p.isDelegatable ? ' (Devredilebilir)' : ' (Kilitli)')}">
-                            </option>
-                        </select>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Etki Alanı (Scope)</label>
-                        <select name="scopeId" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-emerald-500">
-                            <option th:each="s : ${allScopes}" 
-                                    th:value="${s.id}" 
-                                    th:text="${s.scopeKey + ' - ' + s.description}">
-                            </option>
-                        </select>
-                    </div>
-
-                    <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm py-2 px-4 rounded-lg transition duration-200 shadow-md shadow-emerald-900/20">
-                        Yetkiyi Tanımla
-                    </button>
-                </form>
-            </div>
-
-            <!-- SAĞ KOLON: Mevcut Atanmış Dinamik Yetkilerin Listesi -->
-            <div class="bg-gray-800/50 border border-gray-800 p-6 rounded-xl shadow-lg h-fit md:col-span-1">
-                <h3 class="text-lg font-bold text-rose-400 mb-4 border-b border-gray-800 pb-2">
-                    📋 Atanmış Özel Yetkiler
-                </h3>
-                
-                <div th:if="${#lists.isEmpty(userPermissions)}" class="text-center py-6 text-gray-500 text-sm">
-                    Bu kullanıcıya atanmış özel bir yetki bulunmuyor. (Sadece rütbe yetkileri geçerli)
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 h-fit">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-blue-300">Rank</h2>
+            <p class="mt-2 text-xs text-slate-500">Ranks are hierarchical. An administrator can only manage lower ranks.</p>
+            <form sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:action="@{/users/{id}/update-rank(id=${user.id})}" method="post" class="mt-4 space-y-4">
+                <div>
+                    <label for="rankId" class="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">New rank</label>
+                    <select id="rankId" name="rankId"
+                            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option th:each="rank : ${allRanks}" th:value="${rank.id}"
+                                th:selected="${rank.id == user.rank.id}"
+                                th:text="${rank.name + ' · level ' + rank.level}">MODERATOR · level 50</option>
+                    </select>
                 </div>
+                <button type="submit" class="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 transition">
+                    Update rank
+                </button>
+            </form>
+            <p sec:authorize="!hasAnyRole('ADMIN','SUPER_ADMIN')" class="mt-4 rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-slate-500">
+                Your role can view this page but cannot change ranks.
+            </p>
+        </section>
 
-                <div th:if="${!#lists.isEmpty(userPermissions)}" class="space-y-3">
-                    <div th:each="up : ${userPermissions}" class="bg-gray-900/80 border border-gray-800 p-3 rounded-lg flex justify-between items-center">
-                        <div>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-xs font-bold bg-gray-800 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20" th:text="${up.permission.action}">READ</span>
-                                <span class="text-xs font-bold bg-gray-800 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20" th:text="${up.scope.scopeKey}">SYSTEM</span>
-                            </div>
-                            <p class="text-[10px] text-gray-500 mt-1" th:if="${up.grantedBy != null}">
-                                Veren: <span th:text="${up.grantedBy.username}">admin</span>
-                            </p>
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 h-fit">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-emerald-300">Grant scoped permission</h2>
+            <p class="mt-2 text-xs text-slate-500">Direct grants are evaluated in addition to the rank hierarchy.</p>
+            <form sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')" th:action="@{/users/{id}/grant-permission(id=${user.id})}" method="post" class="mt-4 space-y-4">
+                <div>
+                    <label for="permissionId" class="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">Action</label>
+                    <select id="permissionId" name="permissionId"
+                            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                        <option th:each="permission : ${allPermissions}" th:value="${permission.id}"
+                                th:text="${permission.action + (permission.delegatable ? ' · delegatable' : ' · locked')}">READ · locked</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="scopeId" class="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">Scope</label>
+                    <select id="scopeId" name="scopeId"
+                            class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                        <option th:each="scope : ${allScopes}" th:value="${scope.id}"
+                                th:text="${scope.scopeKey + ' — ' + scope.description}">REPORT_MODULE — Reporting module</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 transition">
+                    Grant permission
+                </button>
+            </form>
+        </section>
+
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-rose-300">Assigned grants</h2>
+            <p class="mt-2 text-xs text-slate-500">Only explicit grants are listed here; rank access is implicit.</p>
+
+            <div th:if="${#lists.isEmpty(userPermissions)}" class="mt-6 rounded-lg border border-dashed border-slate-800 px-4 py-8 text-center text-sm text-slate-500">
+                No direct permissions granted.
+            </div>
+
+            <div class="mt-4 space-y-3">
+                <div th:each="grant : ${userPermissions}" class="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex flex-wrap gap-2">
+                            <span class="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-300" th:text="${grant.permission.action}">VIEW_REPORTS</span>
+                            <span class="rounded border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[10px] font-bold text-blue-300" th:text="${grant.scope.scopeKey}">REPORT_MODULE</span>
                         </div>
-                        
-                        <!-- Yetkiyi Geri Al Butonu -->
-                        <form th:action="@{/users/{userId}/revoke-permission/{upId}(userId=${user.id}, upId=${up.id})}" method="post">
-                            <button type="submit" class="text-gray-400 hover:text-rose-400 p-1 rounded transition duration-150" title="Yetkiyi Geri Al">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                </svg>
-                            </button>
+                        <form sec:authorize="hasAnyRole('ADMIN','SUPER_ADMIN')"
+                              th:action="@{/users/{userId}/revoke-permission/{grantId}(userId=${user.id}, grantId=${grant.id})}"
+                              method="post" onsubmit="return confirm('Revoke this permission?');">
+                            <button type="submit" class="text-xs font-semibold text-slate-500 hover:text-rose-300 transition">Revoke</button>
                         </form>
                     </div>
+                    <p class="mt-2 text-[11px] text-slate-500" th:if="${grant.grantedBy != null}">
+                        Granted by <span class="text-slate-300" th:text="${grant.grantedBy.username}">admin</span>
+                    </p>
                 </div>
             </div>
-
-        </div>
-
+        </section>
     </div>
-
+</div>
 </body>
 </html>

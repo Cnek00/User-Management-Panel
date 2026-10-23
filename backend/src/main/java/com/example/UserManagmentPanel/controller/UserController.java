@@ -1,140 +1,168 @@
 package com.example.UserManagmentPanel.controller;
 
-import com.example.UserManagmentPanel.entity.*;
-import com.example.UserManagmentPanel.repository.*;
+import com.example.UserManagmentPanel.entity.RoleType;
+import com.example.UserManagmentPanel.entity.User;
+import com.example.UserManagmentPanel.exception.DomainRuleException;
+import com.example.UserManagmentPanel.exception.DuplicateResourceException;
+import com.example.UserManagmentPanel.service.PermissionService;
+import com.example.UserManagmentPanel.service.ReferenceDataService;
 import com.example.UserManagmentPanel.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.Set;
 
 @Controller
 @RequestMapping("/users")
+@PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN','MODERATOR')")
 public class UserController {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
+    private final PermissionService permissionService;
+    private final ReferenceDataService referenceDataService;
 
-    @Autowired
-    private UserRepository userRepository;
+    public UserController(UserService userService,
+                          PermissionService permissionService,
+                          ReferenceDataService referenceDataService) {
+        this.userService = userService;
+        this.permissionService = permissionService;
+        this.referenceDataService = referenceDataService;
+    }
 
-    @Autowired
-    private RankRepository rankRepository;
-
-    @Autowired
-    private PermissionRepository permissionRepository;
-
-    @Autowired
-    private ScopeRepository scopeRepository;
-
-    @Autowired
-    private UserPermissionRepository userPermissionRepository;
-
-    // ─── Kullanıcı Listeleme ───────────────────────────────
     @GetMapping
-    public String listUsers(Model model) {
-        model.addAttribute("users", userService.findAll());
+    public String listUsers(@RequestParam(required = false) String q, Model model) {
+        model.addAttribute("users", userService.search(q));
+        model.addAttribute("query", q == null ? "" : q);
         return "user-list";
     }
 
-    // ─── Yeni Kullanıcı Formu ──────────────────────────────
     @GetMapping("/new")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     public String showRegistrationForm(Model model) {
         model.addAttribute("user", new User());
-        model.addAttribute("allRanks", rankRepository.findAll());
+        addFormReferenceData(model);
         return "register";
     }
 
-    // ─── Yeni Kullanıcı Kaydetme ───────────────────────────
     @PostMapping("/save")
-    public String saveUser(@ModelAttribute User user, @RequestParam(value = "rankId", required = false) Long rankId) {
-        if (rankId != null) {
-            Rank selectedRank = rankRepository.findById(rankId)
-                    .orElseThrow(() -> new RuntimeException("Seçilen rütbe bulunamadı!"));
-            user.setRank(selectedRank);
-        } else {
-            Rank defaultRank = rankRepository.findByName("USER")
-                    .orElseThrow(() -> new RuntimeException("Varsayılan 'USER' rütbesi bulunamadı!"));
-            user.setRank(defaultRank);
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public String saveUser(@Valid @ModelAttribute("user") User user,
+                           BindingResult bindingResult,
+                           @RequestParam(required = false) Long rankId,
+                           @RequestParam(required = false) Set<RoleType> roles,
+                           Authentication authentication,
+                           Model model,
+                           RedirectAttributes redirectAttributes) {
+        if (bindingResult.hasErrors()) {
+            addFormReferenceData(model);
+            return "register";
         }
-        userRepository.save(user);
+
+        try {
+            userService.create(user, rankId, roles, authentication.getName());
+        } catch (DuplicateResourceException | DomainRuleException | AccessDeniedException exception) {
+            model.addAttribute("formError", exception.getMessage());
+            addFormReferenceData(model);
+            return "register";
+        }
+
+        redirectAttributes.addFlashAttribute("successMessage", "User created successfully.");
         return "redirect:/users";
     }
 
-    // ─── Aktif/Pasif Yapma ─────────────────────────────────
-    @GetMapping("/toggle/{id}")
-    public String toggleUser(@PathVariable Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + id));
-        user.setEnabled(!user.isEnabled());
-        userRepository.save(user);
-        return "redirect:/users";
+    @PostMapping("/{id}/toggle")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public String toggleUser(@PathVariable Long id,
+                             Authentication authentication,
+                             RedirectAttributes redirectAttributes) {
+        return runAction(redirectAttributes, "User status updated.",
+                () -> userService.toggleEnabled(id, authentication.getName()));
     }
 
-    // ─── Silme ─────────────────────────────────────────────
-    @GetMapping("/delete/{id}")
-    public String deleteUser(@PathVariable Long id) {
-        userRepository.deleteById(id);
-        return "redirect:/users";
+    @PostMapping("/{id}/delete")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public String deleteUser(@PathVariable Long id,
+                             Authentication authentication,
+                             RedirectAttributes redirectAttributes) {
+        return runAction(redirectAttributes, "User deleted.",
+                () -> userService.delete(id, authentication.getName()));
     }
 
-    // ═══ Yetki Yönetim Sayfası ═════════════════════════════
     @GetMapping("/{id}/permissions")
     public String showPermissionPage(@PathVariable Long id, Model model) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + id));
-
-        model.addAttribute("user", user);
-        model.addAttribute("allRanks", rankRepository.findAll());
-        model.addAttribute("allPermissions", permissionRepository.findAll());
-        model.addAttribute("allScopes", scopeRepository.findAll());
-        model.addAttribute("userPermissions", userPermissionRepository.findByUserId(id));
+        model.addAttribute("user", userService.findById(id));
+        model.addAttribute("allRanks", referenceDataService.ranks());
+        model.addAttribute("allPermissions", referenceDataService.permissions());
+        model.addAttribute("allScopes", referenceDataService.scopes());
+        model.addAttribute("userPermissions", permissionService.findByUserId(id));
         return "user-permissions";
     }
 
-    // ═══ Rank Güncelleme ═══════════════════════════════════
     @PostMapping("/{id}/update-rank")
-    public String updateRank(@PathVariable Long id, @RequestParam Long rankId) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + id));
-        Rank newRank = rankRepository.findById(rankId)
-                .orElseThrow(() -> new RuntimeException("Rütbe bulunamadı: " + rankId));
-        user.setRank(newRank);
-        userRepository.save(user);
-        return "redirect:/users/" + id + "/permissions?successRank";
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public String updateRank(@PathVariable Long id,
+                             @RequestParam Long rankId,
+                             Authentication authentication,
+                             RedirectAttributes redirectAttributes) {
+        return runAction(redirectAttributes, "Rank updated.",
+                () -> userService.updateRank(id, rankId, authentication.getName()),
+                "redirect:/users/" + id + "/permissions");
     }
 
-    // ═══ Yetki Tanımlama (Grant Permission) ════════════════
     @PostMapping("/{id}/grant-permission")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
     public String grantPermission(@PathVariable Long id,
                                   @RequestParam Long permissionId,
                                   @RequestParam Long scopeId,
-                                  @RequestParam(value = "grantedById", required = false) Long grantedById) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Kullanıcı bulunamadı: " + id));
-        Permission permission = permissionRepository.findById(permissionId)
-                .orElseThrow(() -> new RuntimeException("Yetki bulunamadı: " + permissionId));
-        Scope scope = scopeRepository.findById(scopeId)
-                .orElseThrow(() -> new RuntimeException("Scope bulunamadı: " + scopeId));
-
-        UserPermission up = new UserPermission();
-        up.setUser(user);
-        up.setPermission(permission);
-        up.setScope(scope);
-
-        if (grantedById != null) {
-            User grantedBy = userRepository.findById(grantedById).orElse(null);
-            up.setGrantedBy(grantedBy);
-        }
-
-        userPermissionRepository.save(up);
-        return "redirect:/users/" + id + "/permissions?successPermission";
+                                  Authentication authentication,
+                                  RedirectAttributes redirectAttributes) {
+        return runAction(redirectAttributes, "Permission granted.",
+                () -> permissionService.grant(id, permissionId, scopeId, authentication.getName()),
+                "redirect:/users/" + id + "/permissions");
     }
 
-    // ═══ Yetki Geri Alma (Revoke) ══════════════════════════
-    @PostMapping("/{id}/revoke-permission/{upId}")
-    public String revokePermission(@PathVariable Long id, @PathVariable Long upId) {
-        userPermissionRepository.deleteById(upId);
-        return "redirect:/users/" + id + "/permissions?successRevoke";
+    @PostMapping("/{id}/revoke-permission/{userPermissionId}")
+    @PreAuthorize("hasAnyRole('ADMIN','SUPER_ADMIN')")
+    public String revokePermission(@PathVariable Long id,
+                                   @PathVariable Long userPermissionId,
+                                   Authentication authentication,
+                                   RedirectAttributes redirectAttributes) {
+        return runAction(redirectAttributes, "Permission revoked.",
+                () -> permissionService.revoke(id, userPermissionId, authentication.getName()),
+                "redirect:/users/" + id + "/permissions");
+    }
+
+    private String runAction(RedirectAttributes redirectAttributes, String successMessage, Runnable action) {
+        return runAction(redirectAttributes, successMessage, action, "redirect:/users");
+    }
+
+    private String runAction(RedirectAttributes redirectAttributes,
+                             String successMessage,
+                             Runnable action,
+                             String redirectUrl) {
+        try {
+            action.run();
+            redirectAttributes.addFlashAttribute("successMessage", successMessage);
+        } catch (DuplicateResourceException | DomainRuleException | AccessDeniedException exception) {
+            redirectAttributes.addFlashAttribute("errorMessage", exception.getMessage());
+        }
+        return redirectUrl;
+    }
+
+    private void addFormReferenceData(Model model) {
+        model.addAttribute("allRanks", referenceDataService.ranks());
+        model.addAttribute("allRoles", referenceDataService.roles());
     }
 }
