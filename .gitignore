@@ -31,3 +31,16 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Environment / secrets ###
+.env
+.env.*
+!.env.example
+
+### macOS ###
+.DS_Store
+
+### Local build logs ###
+build_error.txt
+build_error.md
+*.log
